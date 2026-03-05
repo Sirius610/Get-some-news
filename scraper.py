@@ -117,8 +117,8 @@ def run_engine():
                         "项目类型": project_type,
                         "项目名称": title,
                         "发布时间": pub_date,
-                        "公告类型": notice_desc,
-                        "来源站点": site_name
+                        "公告类型": notice_desc
+                        # "来源站点": site_name
                     })
                     
                 page_no += 1
