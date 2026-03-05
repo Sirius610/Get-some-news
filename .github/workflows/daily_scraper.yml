@@ -17,6 +17,9 @@ on:
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
+    # ⚠️ 新增：赋予写入仓库的权限，这是 git push 能成功的关键
+    permissions:
+      contents: write
     steps:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
@@ -36,10 +39,20 @@ jobs:
           FEISHU_APP_ID: ${{ secrets.FS_APP_ID }}         # 读取刚才配置的 Secret
           FEISHU_APP_SECRET: ${{ secrets.FS_APP_SECRET }} # 读取刚才配置的 Secret
         run: python scraper.py
-        
-      - name: 5. 收集生成的总 Excel 表格
+      - name: 5. 记录已抓取数据并更新到仓库 (核心去重步骤)
+        run: |
+          # 配置一个虚拟的 git 机器人身份
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          # 将 Python 刚刚生成的 history.txt 添加到暂存区
+          git add history.txt
+          # 如果有新数据就提交并推送到代码库，如果没有变化就不报错直接跳过
+          git commit -m "Auto-update memory ledger" || echo "No new history to commit"
+          git push
+      - name: 6. 收集生成的总 Excel 表格 (可选下载)
         uses: actions/upload-artifact@v4
         with:
-          name: data
+          name: 全站新增监控数据
           path: "*.xlsx"
           retention-days: 7
+
