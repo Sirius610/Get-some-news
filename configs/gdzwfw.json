@@ -1,0 +1,33 @@
+{
+    "site_name": "广东公共资源交易平台",
+    "feishu_destination": {
+        "app_token": "VwCKbbquZaNMTrsaSJIcVG0un2c",
+        "table_id": "tblg8zTwcQbNobtd"
+    },
+    "request": {
+        "url": "https://ygp.gdzwfw.gov.cn/ggzy-portal/search/v2/items",
+        "method": "POST",
+        "headers": {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+        "payload": {
+            "type": "trading-type", "openConvert": false, "keyword": "",
+            "siteCode": "44", "secondType": "A", "pageNo": 1,
+            "pageSize": 50, "projectType": "", "publishEndTime": "",
+            "publishStartTime": "", "thirdType": "[]", "tradingProcess": ""
+        },
+        "pagination_key": "pageNo"
+    },
+    "parse_rules": {
+        "list_path": ["data", "pageData"],
+        "date_key": "publishDate",
+        "title_key": "noticeTitle",
+        "project_type_key": "projectTypeName",
+        "notice_type_key": "noticeThirdTypeDesc"
+    },
+    "filters": {
+        "target_notice_types": ["招标公告与资格预审公告"],
+        "target_project_types": ["房屋建筑", "市政"]
+    }
+}
