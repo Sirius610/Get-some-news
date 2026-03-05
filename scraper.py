@@ -5,15 +5,26 @@ import requests
 import pandas as pd
 from datetime import datetime
 
-# ================= 全局机密 =================
-# 从 GitHub Secrets 自动读取飞书机器人凭证
+# ================= 全局机密与配置 =================
 FEISHU_APP_ID = os.environ.get("FEISHU_APP_ID", "")
 FEISHU_APP_SECRET = os.environ.get("FEISHU_APP_SECRET", "")
 CONFIG_DIR = "configs"
+HISTORY_FILE = "history.txt" # 记忆账本文件
 # ============================================
 
+def load_history():
+    """读取历史抓取记录"""
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
+            return set(f.read().splitlines())
+    return set()
+
+def save_history(history_set):
+    """保存历史抓取记录"""
+    with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+        f.write("\n".join(history_set))
+
 def get_feishu_token():
-    """获取飞书全局调用凭证"""
     if not FEISHU_APP_ID: return None
     url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
     try:
@@ -23,15 +34,9 @@ def get_feishu_token():
         return None
 
 def push_to_feishu(records, app_token, table_id):
-    """根据传入的表信息，精准推送到对应的飞书表格"""
-    if not app_token or not table_id:
-        print("  [!] JSON 中未配置飞书目标表格，跳过推送。")
-        return
-        
+    if not app_token or not table_id: return
     token = get_feishu_token()
-    if not token:
-        print("  [!] 飞书全局 Token 获取失败，请检查环境变量。")
-        return
+    if not token: return
     
     url = f"https://open.feishu.cn/open-apis/bitable/v1/apps/{app_token}/tables/{table_id}/records/batch_create"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
@@ -40,14 +45,13 @@ def push_to_feishu(records, app_token, table_id):
     try:
         res = requests.post(url, headers=headers, json={"records": feishu_records}).json()
         if res.get("code") == 0:
-            print(f"  [√] 成功将 {len(records)} 条数据同步至指定的飞书表格！")
+            print(f"  [√] 成功推送 {len(records)} 条数据到飞书！")
         else:
-            print(f"  [x] 飞书推送报错 (请检查表头字段名): {res}")
+            print(f"  [x] 飞书推送报错: {res}")
     except Exception as e:
         print(f"  [x] 飞书推送网络异常: {e}")
 
 def get_nested_data(data_dict, keys_list):
-    """逐层安全提取 JSON 结构"""
     temp = data_dict
     for key in keys_list:
         if isinstance(temp, dict): temp = temp.get(key, {})
@@ -57,6 +61,10 @@ def get_nested_data(data_dict, keys_list):
 def run_engine():
     today_str = datetime.now().strftime("%Y%m%d")
     all_results = []
+    
+    # 1. 挂载记忆账本
+    history_set = load_history()
+    new_items_count = 0
     
     if not os.path.exists(CONFIG_DIR):
         print(f"[!] 缺少 {CONFIG_DIR} 文件夹。")
@@ -113,6 +121,13 @@ def run_engine():
                     if notice_desc not in filters.get("target_notice_types", []): continue
                     if project_type not in filters.get("target_project_types", []): continue
                     
+                    # 2. 核心去重逻辑：生成数据指纹
+                    data_fingerprint = f"{site_name}_{pub_date}_{title}"
+                    if data_fingerprint in history_set:
+                        continue # 如果在账本里见过，直接跳过！
+                        
+                    # 如果没见过，加入账本，并装入结果列表
+                    history_set.add(data_fingerprint)
                     site_results.append({
                         "项目类型": project_type,
                         "项目名称": title,
@@ -120,6 +135,7 @@ def run_engine():
                         "公告类型": notice_desc
                         # "来源站点": site_name
                     })
+                    new_items_count += 1
                     
                 page_no += 1
                 if keep_running: time.sleep(1)
@@ -129,19 +145,21 @@ def run_engine():
                 break
                 
         if site_results:
-            print(f"  -> {site_name} 抓取到 {len(site_results)} 条今日数据。")
+            print(f"  -> {site_name} 抓取到 {len(site_results)} 条【全新】数据。")
             all_results.extend(site_results)
-            # 调用飞书推送 (从 JSON 中读取独立表信息)
             push_to_feishu(site_results, feishu_dest.get("app_token"), feishu_dest.get("table_id"))
         else:
-            print(f"  -> {site_name} 今日无符合条件的新数据。")
+            print(f"  -> {site_name} 今日无新的未推数据。")
+
+    # 3. 任务结束，保存最新的账本
+    save_history(history_set)
 
     if all_results:
         df = pd.DataFrame(all_results)
-        df.to_excel(f"全站汇总更新_{today_str}.xlsx", index=False)
-        print(f"\n[√] 引擎运行结束，共抓取 {len(all_results)} 条数据，总 Excel 已生成。")
+        df.to_excel(f"全站新增数据_{today_str}.xlsx", index=False)
+        print(f"\n[√] 引擎运行结束，共抓取并推送 {new_items_count} 条新数据。")
     else:
-        print("\n[!] 引擎运行结束，今日所有站点均无新数据。")
+        print("\n[!] 引擎运行结束，没有发现需要推送的新数据。")
 
 if __name__ == "__main__":
     run_engine()
