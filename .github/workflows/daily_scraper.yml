@@ -1,0 +1,45 @@
+name: 通用多站点监控引擎
+
+on:
+  schedule:
+    # 每天北京时间早上 8:00 运行 (UTC 0:00)
+    - cron: '0 0 * * *'
+    - cron: '0 1 * * *'
+    - cron: '0 2 * * *'
+    - cron: '0 3 * * *'
+    - cron: '0 4 * * *'
+    - cron: '0 6 * * *'
+    - cron: '0 7 * * *'
+    - cron: '0 8 * * *'
+    - cron: '0 9 * * *'
+  workflow_dispatch: # 允许手动点击运行
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. 拉取最新代码
+        uses: actions/checkout@v4
+        
+      - name: 2. 配置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+          
+      - name: 3. 安装依赖包
+        run: pip install -r requirements.txt
+        
+      - name: 4. 执行通用爬虫引擎
+        env:
+          TZ: Asia/Shanghai # 设置时区为北京时间
+          FEISHU_APP_ID: ${{ secrets.FS_APP_ID }}         # 读取刚才配置的 Secret
+          FEISHU_APP_SECRET: ${{ secrets.FS_APP_SECRET }} # 读取刚才配置的 Secret
+        run: python scraper.py
+        
+      - name: 5. 收集生成的总 Excel 表格
+        uses: actions/upload-artifact@v4
+        with:
+          name: 全站监控汇总数据
+          path: "*.xlsx"
+          retention-days: 7
