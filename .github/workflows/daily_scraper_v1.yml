@@ -40,6 +40,6 @@ jobs:
       - name: 5. 收集生成的总 Excel 表格
         uses: actions/upload-artifact@v4
         with:
-          name: 全站监控汇总数据
+          name: data
           path: "*.xlsx"
           retention-days: 7
